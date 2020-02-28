@@ -16,7 +16,10 @@ Prequisites: python3 bluez python3-pip bluepy
 install via
 
 `sudo apt install python3 bluez python3-pip`
+`sudo apt install libglib2.0-dev`
 
+`pip3 install setuptools`
+`pip3 install wheel`
 `pip3 install bluepy`
 
 
