@@ -14,6 +14,25 @@ import signal
 import traceback
 import math
 import logging
+import paho.mqtt.client as mqtt
+
+
+TempTopic    = "xiaomi-ble/bedroom/temperature"
+HumidTopic   = "xiaomi-ble/bedroom/humidity"
+BatteryTopic = "xiaomi-ble/bedroom/battery"
+StateTopic   = "xiaomi-ble/bedroom/availability"
+
+
+def on_connect(client, userdata, flags, rc):
+  print(datetime.now(), "Connected with result code " + str(rc))
+
+
+def on_message(client, userdata, msg):
+  msg.payload = msg.payload.decode("utf-8")
+  payload=str(msg.payload)
+  print(datetime.now(), msg.topic + " " + payload)
+  print("Unknown topic")
+
 
 @dataclass
 class Measurement:
@@ -103,6 +122,7 @@ def thread_SendingData():
 
 mode="round"
 class MyDelegate(btle.DefaultDelegate):
+
 	def __init__(self, params):
 		btle.DefaultDelegate.__init__(self)
 		# ... initialise here
@@ -146,6 +166,10 @@ class MyDelegate(btle.DefaultDelegate):
 			measurement.temperature = temp
 			measurement.humidity = humidity
 			measurement.voltage = voltage
+			client.publish(TempTopic, temp)
+			client.publish(HumidTopic, humidity)
+			client.publish(BatteryTopic, int(round((voltage - 2.1),2) * 100))
+
 			if args.battery:
 				#measurement.battery = globalBatteryLevel
 				batteryLevel = int(round((voltage - 2.1),2) * 100) #3.1 or above --> 100% 2.1 --> 0 %
@@ -174,9 +198,10 @@ class MyDelegate(btle.DefaultDelegate):
 					humidityCalibrated = 0
 				humidityCalibrated=int(round(humidityCalibrated,0))
 				print("Calibrated humidity: " + str(humidityCalibrated))
-				measurement.calibratedHumidity = humidityCalibrated	
+				measurement.calibratedHumidity = humidityCalibrated
 
 			measurements.append(measurement)
+			os._exit(0)
 
 		except Exception as e:
 			print("Fehler")
@@ -256,9 +281,18 @@ unconnectedTime=None
 
 watchdogThread = threading.Thread(target=watchDog_Thread)
 watchdogThread.start()
-logging.debug("watchdogThread startet")
+logging.debug("watchdogThread started")
 
-while True:
+client = mqtt.Client()
+client.connect("192.168.38.11",1883,60)
+
+client.on_connect = on_connect
+client.on_message = on_message
+
+
+for x in range(0, 10):
+	client.loop()
+
 	try:
 		if not connected:
 			#Bluepy sometimes hangs and makes it even impossible to connect with gatttool as long it is running
@@ -281,6 +315,7 @@ while True:
 				# logging.debug("Couldn't find pid of bluepy-helper")				
 			connected=True
 			unconnectedTime=None
+			client.publish(StateTopic, "online")
 
 		# if args.battery:
 				# if(cnt % args.battery == 0):
@@ -309,6 +344,8 @@ while True:
 		time.sleep(1)
 		logging.debug(e)
 		logging.debug(traceback.format_exc())
+		if x > 8:
+			client.publish(StateTopic, "offline")
 
 	print ("Waiting...")
 	# Perhaps do something else here
