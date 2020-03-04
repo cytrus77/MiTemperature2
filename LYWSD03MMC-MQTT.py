@@ -349,3 +349,6 @@ for x in range(0, 10):
 
 	print ("Waiting...")
 	# Perhaps do something else here
+
+
+os._exit(0)
